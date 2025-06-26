@@ -7,12 +7,17 @@ from datetime import datetime
 DATA_FOLDER = "data"
 
 st.title("YouTubeチャンネル ランキングビューア")
-genre = st.selectbox("ジャンルを選択", os.listdir(DATA_FOLDER))
+
+# 🔽 フォルダだけを選択肢にする（ファイルが混ざらないように修正）
+genre_dirs = [d for d in os.listdir(DATA_FOLDER) if os.path.isdir(os.path.join(DATA_FOLDER, d))]
+genre = st.selectbox("ジャンルを選択", genre_dirs)
+
 channel_search = st.text_input("チャンネル名で検索")
 
-# 最新のデータファイルを取得
+# 最新のデータファイルを取得（ファイル名の降順で最新を取得）
 genre_path = os.path.join(DATA_FOLDER, genre)
-latest_file = sorted(os.listdir(genre_path))[-1]
+data_files = sorted([f for f in os.listdir(genre_path) if f.endswith(".csv")])
+latest_file = data_files[-1]
 df = pd.read_csv(os.path.join(genre_path, latest_file))
 
 # チャンネル名でフィルタ
