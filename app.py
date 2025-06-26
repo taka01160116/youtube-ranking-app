@@ -4,39 +4,55 @@ import os
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-DATA_FOLDER = "data"
+DATA_FOLDER = "scraped_channels"
 
-st.title("YouTubeチャンネル ランキングビューア")
+st.set_page_config(page_title="YouTubeジャンル別ランキング", layout="wide")
+st.title("📊 ジャンル別 YouTubeチャンネル ランキング（上位30件）")
 
-# 🔽 フォルダだけを選択肢にする（ファイルが混ざらないように修正）
-genre_dirs = [d for d in os.listdir(DATA_FOLDER) if os.path.isdir(os.path.join(DATA_FOLDER, d))]
-genre = st.selectbox("ジャンルを選択", genre_dirs)
+if not os.path.exists(DATA_FOLDER):
+    st.error("データフォルダが見つかりません。")
+    st.stop()
 
-channel_search = st.text_input("チャンネル名で検索")
+ジャンル一覧 = sorted([f.replace(".csv", "") for f in os.listdir(DATA_FOLDER) if f.endswith(".csv")])
+if not ジャンル一覧:
+    st.error("CSVファイルが見つかりません。")
+    st.stop()
 
-# 最新のデータファイルを取得（ファイル名の降順で最新を取得）
-genre_path = os.path.join(DATA_FOLDER, genre)
-data_files = sorted([f for f in os.listdir(genre_path) if f.endswith(".csv")])
-latest_file = data_files[-1]
-df = pd.read_csv(os.path.join(genre_path, latest_file))
+ジャンル = st.selectbox("ジャンルを選択", ジャンル一覧)
+検索 = st.text_input("🔍 チャンネル名でフィルタ")
 
-# チャンネル名でフィルタ
-if channel_search:
-    df = df[df["チャンネル名"].str.contains(channel_search, case=False, na=False)]
+# 読み込み
+csv_path = os.path.join(DATA_FOLDER, f"{ジャンル}.csv")
+df = pd.read_csv(csv_path)
+
+# フィルタ
+if 検索:
+    df = df[df["チャンネル名"].str.contains(検索, case=False, na=False)]
 
 if df.empty:
-    st.error("該当するデータが見つかりませんでした。")
-else:
-    # ランキング順に並び替え
-    df = df.sort_values(by="再生数", ascending=False).reset_index(drop=True)
+    st.warning("該当するチャンネルは見つかりませんでした。")
+    st.stop()
 
-    for i, row in df.iterrows():
-        st.markdown(f"## {row['チャンネル名']}（再生数: {int(row['再生数']):,}）")
-        st.image(row['サムネイルURL'], width=320)
-        st.markdown(f"[動画を見る](https://www.youtube.com/channel/{row['チャンネルID']})")
+# 並び替え（再生数が数値で存在する場合）
+if "総再生数" in df.columns:
+    try:
+        df["再生数_int"] = df["総再生数"].replace({",": ""}, regex=True).astype(int)
+        df = df.sort_values(by="再生数_int", ascending=False).reset_index(drop=True)
+    except:
+        pass
 
-        # 再生数推移のグラフ表示
-        history_file = os.path.join(genre_path, f"{row['チャンネルID']}_history.csv")
+# 表示
+for i, row in df.iterrows():
+    st.markdown(f"## {row['チャンネル名']}")
+    if "URL" in row:
+        st.markdown(f"[チャンネルを開く]({row['URL']})")
+
+    if "サムネイルURL" in row:
+        st.image(row["サムネイルURL"], width=320)
+
+    チャンネルID = row.get("チャンネルID")
+    if チャンネルID:
+        history_file = os.path.join(DATA_FOLDER, f"{ジャンル}", f"{チャンネルID}_history.csv")
         if os.path.exists(history_file):
             hist = pd.read_csv(history_file)
             if "日付" in hist.columns and "再生数" in hist.columns:
@@ -48,4 +64,4 @@ else:
                 ax.set_ylabel("再生数")
                 st.pyplot(fig)
 
-        st.divider()
+    st.divider()
