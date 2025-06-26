@@ -1,18 +1,28 @@
 @echo off
-cd /d C:\Users\PC_User\Desktop\youtube-ranking-app
+cd /d %~dp0
 
-echo.
-echo [Git] ファイルを全て追加中...
-git add .
+REM Gitの状態確認
+echo [1] Gitステータス確認中...
+git status
 
-echo.
-set /p commit_msg="コミットメッセージを入力してください（例：daily update）: "
-git commit -m "%commit_msg%"
+REM すべての変更ファイル・新規フォルダ・削除も含めてステージング
+echo [2] すべてのファイルをステージに追加中...
+git add -A
 
-echo.
-echo [Git] リモートにpush中...
+REM コミットメッセージの入力を促す
+set /p msg=[3] コミットメッセージを入力してください（例：daily update）:
+
+if "%msg%"=="" (
+    set msg=update all data
+)
+
+REM コミットを実行
+echo [4] コミット実行中...
+git commit -m "%msg%"
+
+REM GitHubへpush
+echo [5] GitHubにpush中...
 git push origin main
 
-echo.
-echo [完了] すべてGitHubに反映されました。
+echo 完了しました。ウィンドウを閉じてください。
 pause
