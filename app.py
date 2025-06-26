@@ -1,37 +1,46 @@
 import streamlit as st
 import pandas as pd
-import json
+import os
 import matplotlib.pyplot as plt
+from datetime import datetime
 
-st.set_page_config(layout="wide", page_title="ジャンル別YouTubeチャンネルギャラリー")
+DATA_FOLDER = "data"
 
-df = pd.read_csv("data/ranking_output.csv")
-with open("data/ranking_with_videos.json", encoding="utf-8") as f:
-    video_data = json.load(f)
+st.title("YouTubeチャンネル ランキングビューア")
+genre = st.selectbox("ジャンルを選択", os.listdir(DATA_FOLDER))
+channel_search = st.text_input("チャンネル名で検索")
 
-genre = st.selectbox("ジャンルを選択", sorted(df["ジャンル"].unique()))
-search = st.text_input("チャンネル名で検索")
+# 最新のデータファイルを取得
+genre_path = os.path.join(DATA_FOLDER, genre)
+latest_file = sorted(os.listdir(genre_path))[-1]
+df = pd.read_csv(os.path.join(genre_path, latest_file))
 
-filtered = df[df["ジャンル"] == genre]
-if search:
-    filtered = filtered[filtered["チャンネル"].str.contains(search, case=False)]
+# チャンネル名でフィルタ
+if channel_search:
+    df = df[df["チャンネル名"].str.contains(channel_search, case=False, na=False)]
 
-for _, row in filtered.iterrows():
-    st.markdown(f"## {row['チャンネル']}（再生数：{row['再生数']:,}）")
-    for video in video_data.get(row["チャンネル"], []):
-        st.image(f"https://i.ytimg.com/vi/{video['link'].split('=')[-1]}/mqdefault.jpg", width=300)
-        st.markdown(f"[{video['title']}]({video['link']}) - {video['published']}")
+if df.empty:
+    st.error("該当するデータが見つかりませんでした。")
+else:
+    # ランキング順に並び替え
+    df = df.sort_values(by="再生数", ascending=False).reset_index(drop=True)
 
-# グラフ（過去30日）
-st.subheader("📈 チャンネル再生数の推移")
-history = pd.read_csv("data/ranking_history.csv")
-channels = filtered["チャンネル"].tolist()
+    for i, row in df.iterrows():
+        st.markdown(f"## {row['チャンネル名']}（再生数: {int(row['再生数']):,}）")
+        st.image(row['サムネイルURL'], width=320)
+        st.markdown(f"[動画を見る](https://www.youtube.com/channel/{row['チャンネルID']})")
 
-for channel in channels:
-    plot_data = history[history["チャンネル"] == channel].sort_values("日付")
-    plt.plot(plot_data["日付"], plot_data["再生数"], label=channel)
+        # 再生数推移のグラフ表示
+        history_file = os.path.join(genre_path, f"{row['チャンネルID']}_history.csv")
+        if os.path.exists(history_file):
+            hist = pd.read_csv(history_file)
+            if "日付" in hist.columns and "再生数" in hist.columns:
+                fig, ax = plt.subplots()
+                hist["日付"] = pd.to_datetime(hist["日付"])
+                ax.plot(hist["日付"], hist["再生数"])
+                ax.set_title("再生数の推移（直近30日間）")
+                ax.set_xlabel("日付")
+                ax.set_ylabel("再生数")
+                st.pyplot(fig)
 
-plt.xticks(rotation=45)
-plt.ylabel("再生数")
-plt.legend()
-st.pyplot(plt)
+        st.divider()
